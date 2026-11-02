@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PremDue – Payment</title>
+<style>
+  :root { --bg:#000; --ink:#f9f8f5; --muted:#a6a7b4; --surface:#111216; --line:#303139; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:440px; margin:0 auto; padding:48px 16px; }
+  h1 { font:400 34px/1.2 Georgia,"Times New Roman",serif; margin:0 0 8px; }
+  p { color:var(--muted); margin:0 0 16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px; margin:24px 0; }
+  .price { font-size:40px; font-weight:700; color:var(--ink); }
+  button { width:100%; min-height:52px; border:0; border-radius:12px; background:var(--ink); color:#000; font:700 16px system-ui,sans-serif; cursor:pointer; }
+  button:disabled { opacity:.5; }
+  #msg { margin-top:16px; color:var(--ink); }
+  a { color:var(--ink); }
+  small { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>PremDue</h1>
+  <div class="card">
+    <div class="price" id="head">Payment received</div>
+    <p id="text">Thank you! Go back to the PremDue app. It unlocks automatically; if not, tap <b>I've paid — check again</b> in Settings.</p>
+  </div>
+  <small>Payments are processed by Razorpay. <a href="privacy.html">Privacy policy</a></small>
+</main>
+<script>
+  // Razorpay adds the link's status to this page's address after checkout.
+  if (new URLSearchParams(location.search).get("razorpay_payment_link_status") !== "paid") {
+    document.getElementById("head").textContent = "Payment not completed";
+    document.getElementById("text").innerHTML = "No money was taken. Go back to the PremDue app and tap <b>Unlock</b> to try again.";
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8–11: same files as data_extraction_rules.xml; requireFlags keeps backups end-to-end encrypted (Android 9+). -->
+<full-backup-content>
+    <include domain="file" path="data.json" requireFlags="clientSideEncryption"/>
+    <include domain="sharedpref" path="presentation.xml" requireFlags="clientSideEncryption"/>
+</full-backup-content>
