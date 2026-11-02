@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  # Public certificate fingerprint. Google sign-in only works with this key.
+  EXPECTED_CERT_SHA256: c96e9d6240c35bb36a4a038b1bdc68932a4be7c45d3717dae91db59bf19b2cbd
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Check tag matches versionName
+        run: |
+          version=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME does not match versionName $version"; exit 1; }
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          mkdir -p signing
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > signing/premdue.p12
+          printf 'storePassword=%s\nkeyAlias=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" > signing/signing.properties
+
+      - name: Lint and build release APK
+        run: ./gradlew lintDebug assembleRelease
+
+      - name: Verify release signature
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner
+          actual=$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+          test "$actual" = "$EXPECTED_CERT_SHA256" || { echo "Wrong signing certificate: $actual"; exit 1; }
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out="PremDue-$GITHUB_REF_NAME.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$out"
+          sha256sum "$out" > "$out.sha256"
+          gh release create "$GITHUB_REF_NAME" "$out" "$out.sha256" --title "PremDue $GITHUB_REF_NAME" --generate-notes
+
+      - name: Remove signing key
+        if: always()
+        run: rm -rf signing
