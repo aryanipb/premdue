@@ -59,4 +59,9 @@ Privacy policy: https://finscious.github.io/premdue/privacy.html
 - Target audience: 18 and over. Not designed for children.
 - Data safety: no data collected, no data shared. Contacts are read only on the device to suggest numbers and never leave it (on-device processing is not "collection" under Play's definition). No data in transit, because the app has no internet permission.
 - Government app: no. Financial features: none (the app neither sells nor services insurance or financial products). Health: no. News: no.
-- Closed testing: track "Closed testing - Alpha", countries: India.
+- Content rating (IARC): category "All Other App Types", every question answered No. Result: ESRB Everyone, PEGI 3, ClassInd All ages.
+- AI asset labelling: none (screenshots are real captures; icon and feature graphic are rendered from the app's own vector logo and fonts).
+- Closed testing: track "Closed testing - Alpha", countries: India, testers: email list "testers", feedback: ceo.finscious@gmail.com.
+
+## Submission log
+- 2026-11-11: v1.1.0 (versionCode 2) AAB from the GitHub release build sent to Google for review on the closed testing track, with the store listing and all App content declarations.
