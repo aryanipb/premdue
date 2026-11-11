@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+: back up only to the agent's own Google account, and only when it is end-to-end encrypted. The licence is never backed up. -->
+<!-- Android 12+: back up only to the agent's own Google account, and only when it is end-to-end encrypted. -->
 <data-extraction-rules>
     <cloud-backup disableIfNoEncryptionCapabilities="true">
         <include domain="file" path="data.json"/>

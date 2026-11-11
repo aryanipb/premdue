@@ -17,6 +17,7 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import java.time.LocalDate
+import java.io.File
 import java.time.YearMonth
 import java.util.Locale
 import java.time.format.DateTimeFormatter
@@ -34,11 +35,9 @@ class MainActivity : UiActivity() {
     private var shownDay: LocalDate? = null
     private var pendingLink: Pair<Policy, Int>? = null // policy being linked, then opened with this channel (-1: only save)
     private var contacts: List<Pair<String, String>>? = null
-    private var payToken: String? = null // set while the payment page is open, so returning checks automatically
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!Licence.allowed(this)) return gate(intent)
         data = Store.load(this)
         DailyReceiver.schedule(this)
         savedInstanceState?.let { restore(it) }
@@ -49,23 +48,12 @@ class MainActivity : UiActivity() {
 
     override fun onNewIntent(i: Intent) {
         super.onNewIntent(i)
-        if (!Licence.allowed(this)) return gate(i)
         handle(i)
-    }
-
-    /** Trial over and not paid: hand the launch (and any shared PDF) to the sign-in / pay screen. */
-    private fun gate(i: Intent?) {
-        startActivity(Intent(this, GateActivity::class.java).putExtra("forward", i).addFlags(i?.flags?.and(Intent.FLAG_GRANT_READ_URI_PERMISSION) ?: 0))
-        finish()
     }
 
     override fun onResume() {
         super.onResume()
         contacts = null // pick up contacts added while away
-        payToken?.let { t ->
-            payToken = null
-            licence("/status", t, failed = {}) { if (Licence.paid(this)) unlocked() }
-        }
         if (shownDay != LocalDate.now()) render()
         awaiting?.let {
             awaiting = null
@@ -128,58 +116,19 @@ class MainActivity : UiActivity() {
 
     /** No due list yet: how to bring one in. */
     private fun empty() {
-        trialBanner()
         heading("Share your due list", "Open the LIC Premium Due List email, tap the PDF, then Share → PremDue.")
         button(body, "Open due list PDF", true) { pickPdf() }
+        button(body, "Try with a sample list") { trySample() }
         button(body, "Restore from backup") { pickBackup() }
         space()
         text(body, "Your customers' data stays on this phone and in your own Google backups. It is never sent to us.", 12f, muted)
     }
 
-    /** While on trial: days left and a way to pay now. */
-    private fun trialBanner() {
-        if (Licence.paid(this)) return
-        val days = Licence.trialDaysLeft(this)
-        val c = card()
-        val r = row(c)
-        val left = column(r).apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
-        text(left, "Free trial · $days ${if (days == 1L) "day" else "days"} left", 14f, bold = true)
-        text(left, "Unlock for ₹299 — one time, all inclusive.", 12f, muted)
-        button(r, "Unlock", true) { unlock() }.layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) }
-    }
-
-    private fun unlock() = pay({ payToken = it }) { unlocked() }
-
-    private fun unlocked() {
-        toast("PremDue unlocked. Thank you!")
-        render()
-    }
-
     private fun settings() {
-        val email = Licence.email(this)
-        val account = group("Account")
-        if (Licence.paid(this)) {
-            item(account, "PremDue · Lifetime", "Paid. Thank you for your support.", "✓")
-        } else {
-            val days = Licence.trialDaysLeft(this)
-            item(account, "Free trial", "$days ${if (days == 1L) "day" else "days"} left")
-            account.addView(column().apply {
-                setPadding(dp(16), 0, dp(16), dp(10))
-                button(this, "Unlock PremDue · ₹299", true) { unlock() }
-                button(this, "I've paid — check again") { googleToken { t -> licence("/status", t) { if (Licence.paid(this@MainActivity)) unlocked() else toast("Payment not found yet. If you just paid, wait a minute and try again.") } } }
-            })
-        }
-        item(account, "Google account", email.ifBlank { "Signed in" })
-        item(account, "Sign out", "Your due list and data stay on this phone.", color = muted) {
-            confirm("Sign out?", "You'll need to sign in with Google again to use PremDue. Your due list and data stay on this phone.") {
-                Licence.signOut(this)
-                gate(null)
-            }
-        }
-
         val due = group("Due list")
         val l = data.list
         item(due, "Open due list PDF", l?.let { "${monthName(it.month)} · ${it.policies.size} policies" } ?: "No list loaded yet") { pickPdf() }
+        item(due, "Try a sample list", "Fictional customers, to see how PremDue works.") { trySample() }
         val langs = listOf("mr" to "मराठी", "hi" to "हिंदी", "en" to "English")
         item(due, "Reminder message language", value = (langs.firstOrNull { it.first == data.lang } ?: langs[0]).second) {
             choose("Reminder message language", langs.map { it.second }) { j ->
@@ -210,10 +159,10 @@ class MainActivity : UiActivity() {
         item(backup, "Automatic backup", "Android also backs up PremDue to your Google account, encrypted.")
 
         val about = group("About")
-        item(about, "Privacy policy") { openUrl(Licence.PRIVACY) }
-        item(about, "Contact support", Licence.SUPPORT) {
-            runCatching { startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${Licence.SUPPORT}?subject=" + Uri.encode("PremDue support")))) }
-                .onFailure { toast("Write to ${Licence.SUPPORT}") }
+        item(about, "Privacy policy") { openUrl(Links.PRIVACY) }
+        item(about, "Contact support", Links.SUPPORT) {
+            runCatching { startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${Links.SUPPORT}?subject=" + Uri.encode("PremDue support")))) }
+                .onFailure { toast("Write to ${Links.SUPPORT}") }
         }
         item(about, "Version", value = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "")
         space()
@@ -221,7 +170,6 @@ class MainActivity : UiActivity() {
     }
 
     private fun today(l: DueList) {
-        trialBanner()
         val day = LocalDate.now()
         if (YearMonth.from(day) != l.month)
             text(body, "This list is for ${monthName(l.month)}. Share the new month's PDF.", 13f, muted)
@@ -619,6 +567,13 @@ class MainActivity : UiActivity() {
         }
     }
 
+    /** Builds the fictional sample list as a PDF and reads it like a real one. */
+    private fun trySample() {
+        val f = File(cacheDir, "sample-due-list.pdf")
+        runCatching { Sample.writePdf(YearMonth.now(), LocalDate.now().dayOfMonth, f) }.onFailure { return toast("Could not create the sample list.") }
+        import(Uri.fromFile(f))
+    }
+
     private fun import(uri: Uri) {
         toast("Reading due list…")
         Thread {
@@ -650,7 +605,7 @@ class MainActivity : UiActivity() {
 
     private fun loaded(new: DueList) {
         val old = data.list
-        if (old != null && new.month < old.month)
+        if (old != null && new.month < old.month && old.agent != Sample.AGENT)
             return info("Older list", "This PDF is for ${new.month}, but ${old.month} is already loaded. Nothing was changed.")
         if (old != null)
             return AlertDialog.Builder(this)

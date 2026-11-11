@@ -40,8 +40,8 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > signing/premdue.p12
           printf 'storePassword=%s\nkeyAlias=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" > signing/signing.properties
 
-      - name: Lint and build release APK
-        run: ./gradlew lintDebug assembleRelease
+      - name: Test, lint and build release APK and AAB
+        run: ./gradlew testDebugUnitTest lintDebug assembleRelease bundleRelease
 
       - name: Verify release signature
         run: |
@@ -56,8 +56,11 @@ jobs:
         run: |
           out="PremDue-$GITHUB_REF_NAME.apk"
           cp app/build/outputs/apk/release/app-release.apk "$out"
-          sha256sum "$out" > "$out.sha256"
-          gh release create "$GITHUB_REF_NAME" "$out" "$out.sha256" --title "PremDue $GITHUB_REF_NAME" --generate-notes
+          aab="PremDue-$GITHUB_REF_NAME.aab"
+          cp app/build/outputs/bundle/release/app-release.aab "$aab"
+          jarsigner -verify "$aab" > /dev/null
+          sha256sum "$out" "$aab" > "PremDue-$GITHUB_REF_NAME.sha256"
+          gh release create "$GITHUB_REF_NAME" "$out" "$aab" "PremDue-$GITHUB_REF_NAME.sha256" --title "PremDue $GITHUB_REF_NAME" --generate-notes
 
       - name: Remove signing key
         if: always()

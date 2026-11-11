@@ -3,13 +3,13 @@ import java.util.Properties
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android {
     namespace = "com.aryan.premdue"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.aryan.premdue"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        targetSdk = 36
+        versionCode = 2
+        versionName = "1.1.0"
     }
     // signing/ is git-ignored: a fresh clone must still configure and build debug.
     val signingProps = rootProject.file("signing/signing.properties")
@@ -30,7 +30,5 @@ android {
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.core:core:1.13.1")
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    testImplementation("junit:junit:4.13.2")
 }

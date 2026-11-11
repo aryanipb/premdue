@@ -11,12 +11,20 @@
 [![Latest APK](https://img.shields.io/github/v/release/aryanipb/premdue?label=download%20APK&color=2ea44f)](https://github.com/aryanipb/premdue/releases/latest)
 ![Platform](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS-Lambda%20%2B%20DynamoDB-FF9900?logo=amazonwebservices&logoColor=white)
+![Price](https://img.shields.io/badge/price-free-2ea44f)
 ![Privacy](https://img.shields.io/badge/customer%20data-stays%20on%20device-black)
 
 </div>
 
 ---
+
+<p align="center">
+  <img src="docs/screens/today.png" width="200" alt="Today: dues and lapse risk">
+  <img src="docs/screens/month.png" width="200" alt="Month: every policy still due">
+  <img src="docs/screens/insights.png" width="200" alt="Insights: collections and lapse risk">
+  <img src="docs/screens/tools.png" width="200" alt="Tools: sales calculators">
+</p>
+<p align="center"><sub>Screens from the built-in sample list. All names and policies are fictional.</sub></p>
 
 ## The problem
 
@@ -35,85 +43,76 @@ PremDue reads that PDF and turns it into a worklist. The agent shares the file t
 | 📊 **Insights** | Collections this month, lapse risk by months behind, dues by week, policy mix, biggest premiums and month-to-month trends. |
 | 🧮 **Sales tools** | Policy return (IRR), human life value, retirement, child goal, inflation, growth, loan EMI and loan + SIP planners. |
 | 🖨️ **Plan presentations** | Turn a plan illustration into a branded PDF and share it with a customer. |
-| 🔒 **Private by design** | Customer data stays on the phone. Backups go only to places the agent controls. |
+| 🧪 **Try it instantly** | A built-in sample due list with fictional customers shows the whole flow without a real PDF. |
+| 🔒 **Private by design** | No account, no ads, no analytics, no internet permission. Customer data stays on the phone. |
 
 ## Business model
 
-**₹299 once, all inclusive, after a 7-day free trial.** There is no subscription. Trials run on server time, so reinstalling cannot reset them.
+**Free for now**, with no account and no ads, while PremDue builds its base of agents. The earlier paid build (v1.0.0, ₹299 one-time through Razorpay) is preserved in the git history for when paid features return.
 
 ## Architecture
 
-The core decision: the server never sees customer data. It only knows who has a licence.
+The core decision: **there is no server.** Everything happens on the agent's phone, so customer data cannot leak from a backend that does not exist.
 
 ```mermaid
 flowchart LR
-    PDF["Due list PDF"] -->|share to app| App
+    PDF["Due list PDF<br/>or built-in sample"] -->|share / open| Parser
 
-    subgraph Phone["Agent's phone: all customer data lives here"]
-        App["PremDue app<br/>Kotlin"]
-        Store[("Local storage")]
-        App <--> Store
+    subgraph Phone["Agent's phone: all data lives here"]
+        Parser["Parser<br/>checks rows against Grand Total"] --> Store[("Local storage")]
+        Store --> Views["Today · Month · Insights"]
+        Store --> Alarm["Daily 9 AM summary"]
     end
 
-    App -->|"Google ID token only"| Lambda
-
-    subgraph AWS["AWS ap-south-1 (Mumbai)"]
-        Lambda["Licence API<br/>Lambda"]
-        DB[("DynamoDB<br/>trial and payment status")]
-        Lambda <--> DB
-    end
-
-    Lambda <-->|"payment links, signed webhooks"| RZP["Razorpay"]
-    App -.->|"call / SMS / WhatsApp"| Customer["Customer"]
+    Views -.->|"call / SMS / WhatsApp"| Customer["Customer"]
+    Store -.->|"encrypted Android backup"| Drive["Agent's own Google account"]
 ```
 
 ### Engineering highlights
 
-- **Small on purpose.** About 3,000 lines across the Android app, licence server and web pages, with no UI framework dependency.
+- **Small on purpose.** About 2,600 lines of Kotlin with no UI framework dependency, and only two runtime libraries.
 - **Verified parsing.** Row totals must reconcile with the document's own grand totals before a list is accepted.
-- **Dependency-free token checks.** The server verifies Google RS256 ID tokens itself, using only the Python standard library plus boto3.
-- **Reliable payments.** Razorpay webhooks are HMAC-verified, and the server also re-checks Razorpay directly, so a missed webhook never loses a purchase.
-- **Tamper-resistant trials.** Trial start is written once on the server with `if_not_exists`.
+- **Self-checking sample.** The sample list is drawn as a real PDF on the phone and read back through the same parser as a real list, and unit tests check that it reconciles.
+- **Modern Android.** Targets Android 16 (API 36) and draws edge-to-edge, with system-bar and keyboard insets handled by hand.
 - **Privacy built in.** Data minimisation is designed around India's DPDP Act, 2023: see the [privacy policy](web/privacy.html).
 
 ## CI/CD
 
 ```mermaid
 flowchart LR
-    Push["Push or PR"] --> CI["Lint, debug build,<br/>server syntax check"]
-    Tag["Tag v*"] --> Build["Lint and signed<br/>release build"]
+    Push["Push or PR"] --> CI["Unit tests, lint,<br/>debug build"]
+    Tag["Tag v*"] --> Build["Tests, lint, signed<br/>APK and AAB"]
     Build --> Verify["Verify signing<br/>certificate"]
-    Verify --> Rel["GitHub Release<br/>APK + SHA-256"]
+    Verify --> Rel["GitHub Release<br/>APK + AAB + SHA-256"]
 ```
 
 Every release is built by GitHub Actions from a tagged commit. The pipeline stops if the tag does not match the app version, or if the APK is not signed with the production certificate.
 
 ## Install
 
-Download the latest APK from [**Releases**](https://github.com/aryanipb/premdue/releases/latest). It requires Android 8.0 or newer, and Android will ask you to allow installs from your browser.
+Download the latest APK from [**Releases**](https://github.com/aryanipb/premdue/releases/latest). It requires Android 8.0 or newer, and Android will ask you to allow installs from your browser. A Google Play release is in closed testing.
 
 ## Build from source
 
 Requires JDK 17 and the Android SDK (API 35).
 
 ```bash
-./gradlew lintDebug assembleDebug
+./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
-A fresh clone builds a debug APK without signing keys. Google sign-in needs the production signing certificate, so it will not work in a debug build.
+A fresh clone builds a debug APK without signing keys.
 
 ## Project layout
 
 ```text
-app/      Android app (Kotlin): parsing, worklist, calculators, PDF generation
-server/   AWS Lambda licence API: sign-in, trial, Razorpay
-web/      Landing, payment result and privacy pages
+app/      Android app (Kotlin): parsing, worklist, calculators, PDF generation, sample list
+web/      Landing and privacy pages
 .github/  CI and release pipelines
 ```
 
 ## Tech stack
 
-Kotlin · Android SDK · PDFBox Android · Android Credential Manager · AWS Lambda · DynamoDB · Python · Razorpay · GitHub Actions
+Kotlin · Android SDK (API 36) · PDFBox Android · JUnit · GitHub Actions
 
 ---
 
